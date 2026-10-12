@@ -1,0 +1,146 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+const translatte = require('translatte');
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const ROOT = path.resolve(__dirname, '..');
+const EN_PATH = path.join(ROOT, 'src/exercise-desc/en.js');
+const TR_PATH = path.join(ROOT, 'src/exercise-desc/tr.js');
+const PROGRESS_PATH = path.join(ROOT, 'src/exercise-desc/tr-progress.json');
+
+function polishFitnessTurkish(text) {
+  if (!text) return '';
+  return text
+    .replace(/\bbuzağıları\b/gi, 'baldır kaslarını')
+    .replace(/\bbuzağılar\b/gi, 'baldır kasları')
+    .replace(/\bbuzağıyı\b/gi, 'baldırı')
+    .replace(/\bbuzağı\b/gi, 'baldır')
+    .replace(/\beğitir\b/gi, 'çalıştırır')
+    .replace(/\beğitiyor\b/gi, 'çalıştırır')
+    .replace(/\beğitirler\b/gi, 'çalıştırırlar')
+    .replace(/\bbant sırası\b/gi, 'bant çekişi')
+    .replace(/\bgöğüs sineği\b/gi, 'göğüs açışı')
+    .replace(/\bters sinek\b/gi, 'ters açış (reverse fly)')
+    .replace(/\bçömelme\b/gi, 'squat')
+    .replace(/\bçömelmesi\b/gi, 'squatı')
+    .replace(/\bbantlı sıra\b/gi, 'bant çekişi')
+    .replace(/\bkablo sırası\b/gi, 'kablo çekişi (cable row)')
+    .replace(/\bdambıl sırası\b/gi, 'dambıl çekişi (dumbbell row)')
+    .replace(/\bhalter sırası\b/gi, 'halter çekişi (barbell row)')
+    .replace(/\bbisepsleri\b/gi, 'pazıları (biceps)')
+    .replace(/\btrisepsleri\b/gi, 'arka kol (triceps) kaslarını')
+    .replace(/\btriseps\b/gi, 'arka kol (triceps)')
+    .replace(/\bdelts\b/gi, 'omuz kaslarını')
+    .replace(/\bquads\b/gi, 'ön bacak (quadriceps) kaslarını')
+    .replace(/\bquad\b/gi, 'ön bacak')
+    .replace(/\bhamstrings\b/gi, 'arka bacak (hamstring) kaslarını')
+    .replace(/\bhamstringleri\b/gi, 'arka bacak kaslarını')
+    .replace(/\bglutes\b/gi, 'kalça kaslarını')
+    .replace(/\bpeks\b/gi, 'göğüs kaslarını')
+    .replace(/\blats\b/gi, 'kanat (lat) kaslarını')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+async function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function translateBatch(batch) {
+  // batch is array of [id, englishText]
+  const formatted = batch.map(([, text], i) => `<<< ${i} >>> ${text}`).join('\n');
+  try {
+    const res = await translatte(formatted, { to: 'tr' });
+    const lines = res.text.split('\n');
+    const result = {};
+    for (const line of lines) {
+      const m = line.match(/<<<\s*(\d+)\s*>>>\s*(.*)/);
+      if (m) {
+        const idx = parseInt(m[1], 10);
+        if (batch[idx]) {
+          result[batch[idx][0]] = polishFitnessTurkish(m[2]);
+        }
+      }
+    }
+    // Check if any missing in batch
+    for (let i = 0; i < batch.length; i++) {
+      const [id, text] = batch[i];
+      if (!result[id]) {
+        try {
+          const singleRes = await translatte(text, { to: 'tr' });
+          result[id] = polishFitnessTurkish(singleRes.text);
+          await sleep(100);
+        } catch {
+          result[id] = text; // fallback to English
+        }
+      }
+    }
+    return result;
+  } catch (err) {
+    console.warn('Batch translation error, retrying items one by one...', err.message);
+    const result = {};
+    for (const [id, text] of batch) {
+      try {
+        const singleRes = await translatte(text, { to: 'tr' });
+        result[id] = polishFitnessTurkish(singleRes.text);
+        await sleep(150);
+      } catch {
+        result[id] = text;
+      }
+    }
+    return result;
+  }
+}
+
+async function main() {
+  console.log('Loading English descriptions...');
+  const enRaw = fs.readFileSync(EN_PATH, 'utf8');
+  const en = JSON.parse(enRaw.replace(/^[^{]+/, '').replace(/;?\s*$/, ''));
+  const total = Object.keys(en).length;
+  console.log(`Total exercises: ${total}`);
+
+  let progress = {};
+  if (fs.existsSync(PROGRESS_PATH)) {
+    try {
+      progress = JSON.parse(fs.readFileSync(PROGRESS_PATH, 'utf8'));
+      console.log(`Resuming from ${Object.keys(progress).length} already translated.`);
+    } catch {
+      progress = {};
+    }
+  }
+
+  const entriesToTranslate = Object.entries(en).filter(([id]) => !progress[id]);
+  console.log(`Remaining to translate: ${entriesToTranslate.length}`);
+
+  const BATCH_SIZE = 25;
+  let count = Object.keys(progress).length;
+
+  for (let i = 0; i < entriesToTranslate.length; i += BATCH_SIZE) {
+    const chunk = entriesToTranslate.slice(i, i + BATCH_SIZE);
+    const translated = await translateBatch(chunk);
+    Object.assign(progress, translated);
+    count += chunk.length;
+
+    // Save progress
+    fs.writeFileSync(PROGRESS_PATH, JSON.stringify(progress, null, 2), 'utf8');
+    const percent = ((count / total) * 100).toFixed(1);
+    console.log(`Progress: ${count}/${total} (${percent}%) translated.`);
+
+    // Small delay between requests to be gentle
+    await sleep(250);
+  }
+
+  console.log('Writing final src/exercise-desc/tr.js...');
+  const finalContent = '// generated by scripts/translate-descriptions.mjs\nexport default ' + JSON.stringify(progress) + ';\n';
+  fs.writeFileSync(TR_PATH, finalContent, 'utf8');
+  console.log('Successfully written src/exercise-desc/tr.js!');
+}
+
+main().catch(err => {
+  console.error('Fatal translation error:', err);
+  process.exit(1);
+});
