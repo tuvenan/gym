@@ -104,6 +104,14 @@ export default defineConfig({
   define: { __APP_VERSION__: JSON.stringify(appVersion) },
   plugins: [react(), umami, flavor, swStamp, catalogueMedia],
   base: './',
+  resolve: {
+    alias: [
+      {
+        find: /^(.*\/)?api\/coach\/core\/(.*)$/,
+        replacement: resolve(fileURLToPath(new URL('.', import.meta.url)), 'src/coach-core/$2')
+      }
+    ]
+  },
   server: {
     // The Coach's core (payload, validator, prompts, HTTP adapters) lives in ../api/coach/core
     // and is imported by the phone build. vite build and vitest already reach it; the dev

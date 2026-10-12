@@ -15,13 +15,13 @@
 //   - the pseudonym is drawn at random once and kept, rather than derived from a secret.
 //   - a proposal waits in the device file, not in S, so it survives an app kill without
 //     riding into a backup or a sync.
-import * as payloadLib from '../../../api/coach/core/payload.js'
-import { runPipeline } from '../../../api/coach/core/pipeline.js'
-import { HTTP_PROVIDERS, baseUrlFor } from '../../../api/coach/core/providers.js'
-import anthropic from '../../../api/coach/core/adapters/anthropic.js'
-import openai from '../../../api/coach/core/adapters/openai.js'
-import gemini from '../../../api/coach/core/adapters/gemini.js'
-import compatible from '../../../api/coach/core/adapters/compatible.js'
+import * as payloadLib from '../coach-core/payload.js'
+import { runPipeline } from '../coach-core/pipeline.js'
+import { HTTP_PROVIDERS, baseUrlFor } from '../coach-core/providers.js'
+import anthropic from '../coach-core/adapters/anthropic.js'
+import openai from '../coach-core/adapters/openai.js'
+import gemini from '../coach-core/adapters/gemini.js'
+import compatible from '../coach-core/adapters/compatible.js'
 import { nativeFetch } from './capacitor-fetch.js'
 import { getApiKey } from './coach-secrets.js'
 import { loadCoachDevice, saveCoachDevice } from './coach-device.js'
