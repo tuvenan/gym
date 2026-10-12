@@ -79,7 +79,7 @@ export default {
   'No weigh-ins yet. Log your weight to start the curve (we also ask before every workout).': 'Henüz tartı kaydı yok. Eğriyi başlatmak için kilonu gir (her antrenmandan önce de soruyoruz).',
   'Best:': 'Rekor:',
   'Add to my plan': 'Planıma ekle',
-  'How to': 'Nasıl yapılır',
+  'How to': 'Nasıl yapılır?',
   'instructions in English': 'talimatlar İngilizce',
   'New routine': 'Yeni rutin',
   'Add “{0}”': '“{0}” ekle',
